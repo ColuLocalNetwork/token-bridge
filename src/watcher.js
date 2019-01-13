@@ -1,5 +1,6 @@
 require('dotenv').config()
 const path = require('path')
+const pMap = require('p-map')
 const { BN, toBN } = require('web3').utils
 const { connectWatcherToQueue, connection } = require('./services/amqpClient')
 const { getBlockNumber } = require('./tx/web3')
@@ -17,6 +18,8 @@ if (process.argv.length < 3) {
 
 const config = require(path.join('../config/', process.argv[2]))
 
+const isErcToErcMultiple = config.id.startsWith('erc-erc-multiple')
+
 const processSignatureRequests = require('./events/processSignatureRequests')(config)
 const processCollectedSignatures = require('./events/processCollectedSignatures')(config)
 const processAffirmationRequests = require('./events/processAffirmationRequests')(config)
@@ -26,10 +29,6 @@ const ZERO = toBN(0)
 const ONE = toBN(1)
 
 const web3Instance = config.web3
-const bridgeContract = new web3Instance.eth.Contract(config.bridgeAbi, config.bridgeContractAddress)
-const eventContract = new web3Instance.eth.Contract(config.eventAbi, config.eventContractAddress)
-const lastBlockRedisKey = `${config.id}:lastProcessedBlock`
-let lastProcessedBlock = BN.max(config.startBlock.sub(ONE), ZERO)
 
 async function initialize() {
   try {
@@ -38,7 +37,6 @@ async function initialize() {
     rpcUrlsManager.homeUrls.forEach(checkHttps('home'))
     rpcUrlsManager.foreignUrls.forEach(checkHttps('foreign'))
 
-    await getLastProcessedBlock()
     connectWatcherToQueue({
       queueName: config.queue,
       cb: runMain
@@ -70,41 +68,43 @@ async function runMain({ sendToQueue }) {
   }, config.pollingInterval)
 }
 
-async function getLastProcessedBlock() {
+async function getLastProcessedBlock(lastBlockRedisKey, lastBlockFromConfig) {
   const result = await redis.get(lastBlockRedisKey)
   logger.debug(
-    { fromRedis: result, fromConfig: lastProcessedBlock.toString() },
+    { fromRedis: result, fromConfig: lastBlockFromConfig.toString() },
     'Last Processed block obtained'
   )
-  lastProcessedBlock = result ? toBN(result) : lastProcessedBlock
+  return result ? toBN(result) : lastBlockFromConfig
 }
 
-function updateLastProcessedBlock(lastBlockNumber) {
-  lastProcessedBlock = lastBlockNumber
-  return redis.set(lastBlockRedisKey, lastProcessedBlock.toString())
+function updateLastProcessedBlock(lastBlockRedisKey, lastBlockNumber) {
+  return redis.set(lastBlockRedisKey, lastBlockNumber.toString())
 }
 
-function processEvents(events) {
+function processEvents(events, homeBridgeAddress, foreignBridgeAddress) {
   switch (config.id) {
     case 'native-erc-signature-request':
     case 'erc-erc-signature-request':
+    case 'erc-erc-multiple-signature-request':
     case 'erc-native-signature-request':
-      return processSignatureRequests(events)
+      return processSignatureRequests(events, homeBridgeAddress, foreignBridgeAddress)
     case 'native-erc-collected-signatures':
     case 'erc-erc-collected-signatures':
+    case 'erc-erc-multiple-collected-signatures':
     case 'erc-native-collected-signatures':
-      return processCollectedSignatures(events)
+      return processCollectedSignatures(events, homeBridgeAddress, foreignBridgeAddress)
     case 'native-erc-affirmation-request':
       return processAffirmationRequests(events)
     case 'erc-erc-affirmation-request':
+    case 'erc-erc-multiple-affirmation-request':
     case 'erc-native-affirmation-request':
-      return processTransfers(events)
+      return processTransfers(events, homeBridgeAddress)
     default:
       return []
   }
 }
 
-async function getLastBlockToProcess() {
+async function getLastBlockToProcess(bridgeContract) {
   const lastBlockNumberPromise = getBlockNumber(web3Instance).then(toBN)
   const requiredBlockConfirmationsPromise = getRequiredBlockConfirmations(bridgeContract).then(toBN)
   const [lastBlockNumber, requiredBlockConfirmations] = await Promise.all([
@@ -115,41 +115,107 @@ async function getLastBlockToProcess() {
   return lastBlockNumber.sub(requiredBlockConfirmations)
 }
 
+async function processOne(
+  sendToQueue,
+  bridgeContractAddress,
+  eventContractAddress,
+  homeBridgeAddress,
+  foreignBridgeAddress,
+  lastProcessedBlock
+) {
+  const bridgeContract = new web3Instance.eth.Contract(config.bridgeAbi, bridgeContractAddress)
+  const eventContract = new web3Instance.eth.Contract(config.eventAbi, eventContractAddress)
+
+  const lastBlockToProcess = await getLastBlockToProcess(bridgeContract)
+
+  if (lastBlockToProcess.lte(lastProcessedBlock)) {
+    logger.debug('All blocks already processed')
+    return lastBlockToProcess
+  }
+
+  const fromBlock = lastProcessedBlock.add(ONE)
+  const toBlock = lastBlockToProcess
+
+  const events = await getEvents({
+    contract: eventContract,
+    event: config.event,
+    fromBlock,
+    toBlock,
+    filter: config.eventFilter
+  })
+  logger.info(
+    `Found ${events.length} ${config.event} events for contract address
+      ${eventContract.options.address}`
+  )
+
+  if (events.length) {
+    const job = await processEvents(events, homeBridgeAddress, foreignBridgeAddress)
+    logger.info('Transactions to send:', job.length)
+
+    if (job.length) {
+      await sendToQueue(job)
+    }
+  }
+
+  return lastBlockToProcess
+}
+
 async function main({ sendToQueue }) {
   try {
-    const lastBlockToProcess = await getLastBlockToProcess()
+    let lastBlockToProcess
 
-    if (lastBlockToProcess.lte(lastProcessedBlock)) {
-      logger.debug('All blocks already processed')
-      return
-    }
-
-    const fromBlock = lastProcessedBlock.add(ONE)
-    const toBlock = lastBlockToProcess
-
-    const events = await getEvents({
-      contract: eventContract,
-      event: config.event,
-      fromBlock,
-      toBlock,
-      filter: config.eventFilter
-    })
-    logger.info(`Found ${events.length} ${config.event} events`)
-
-    if (events.length) {
-      const job = await processEvents(events)
-      logger.info('Transactions to send:', job.length)
-
-      if (job.length) {
-        await sendToQueue(job)
+    if (isErcToErcMultiple) {
+      const mapper = async bridgeObj => {
+        const bridgeContractAddress = bridgeObj[`${config.queue}BridgeAddress`]
+        const eventContractAddress =
+          config.id === 'erc-erc-multiple-affirmation-request'
+            ? bridgeObj.foreignTokenAddress
+            : bridgeContractAddress
+        const lastBlockRedisKey = `${config.id}:lastProcessedBlock
+          :${bridgeObj.homeBridgeAddress}
+          :${bridgeObj.foreignBridgeAddress}`
+        const lastProcessedBlock = await getLastProcessedBlock(
+          lastBlockRedisKey,
+          config.id === 'erc-erc-multiple-affirmation-request'
+            ? BN.max(config.foreignStartBlock.sub(ONE), ZERO)
+            : BN.max(config.homeStartBlock.sub(ONE), ZERO)
+        )
+        const lastBlockToProcess = await processOne(
+          sendToQueue,
+          bridgeContractAddress,
+          eventContractAddress,
+          bridgeObj.homeBridgeAddress,
+          bridgeObj.foreignBridgeAddress,
+          lastProcessedBlock
+        )
+        return { lastBlockToProcess, lastBlockRedisKey }
       }
+      const results = await pMap(config.multipleBridges, mapper, { concurrency: 1 }) // TODO should be configurable through ENV
+      results.forEach(async res => {
+        logger.debug(
+          { lastBlockToProcess: res.lastBlockToProcess.toString() },
+          `Updating last processed block for key ${res.lastBlockRedisKey}`
+        )
+        await updateLastProcessedBlock(res.lastBlockRedisKey, res.lastBlockToProcess)
+      })
+    } else {
+      const lastBlockRedisKey = `${config.id}:lastProcessedBlock`
+      let lastProcessedBlock = BN.max(config.startBlock.sub(ONE), ZERO)
+      lastProcessedBlock = await getLastProcessedBlock(lastBlockRedisKey, lastProcessedBlock)
+      lastBlockToProcess = await processOne(
+        sendToQueue,
+        config.bridgeContractAddress,
+        config.eventContractAddress,
+        config.homeBridgeAddress,
+        config.foreignBridgeAddress,
+        lastProcessedBlock
+      )
+      logger.debug(
+        { lastProcessedBlock: lastBlockToProcess.toString() },
+        'Updating last processed block'
+      )
+      await updateLastProcessedBlock(lastBlockRedisKey, lastBlockToProcess)
     }
-
-    logger.debug(
-      { lastProcessedBlock: lastBlockToProcess.toString() },
-      'Updating last processed block'
-    )
-    await updateLastProcessedBlock(lastBlockToProcess)
   } catch (e) {
     logger.error(e)
   }

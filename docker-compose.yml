@@ -20,7 +20,7 @@ services:
     command: [redis-server, --appendonly, 'yes']
     hostname: redis
     image: redis:4
-    networks:    
+    networks:
       - net_db_bridge_request
       - net_db_bridge_collected
       - net_db_bridge_affirmation
@@ -34,8 +34,8 @@ services:
     build: .
     command: 'true'
     env_file: ./.env
-    environment: 
-      - NODE_ENV=production 
+    environment:
+      - NODE_ENV=production
       - VALIDATOR_ADDRESS_PRIVATE_KEY=${VALIDATOR_ADDRESS_PRIVATE_KEY}
     restart: unless-stopped
     entrypoint: npm run watcher:signature-request
@@ -48,8 +48,8 @@ services:
     build: .
     command: 'true'
     env_file: ./.env
-    environment: 
-      - NODE_ENV=production 
+    environment:
+      - NODE_ENV=production
       - VALIDATOR_ADDRESS=${VALIDATOR_ADDRESS}
     restart: unless-stopped
     entrypoint: npm run watcher:collected-signatures
@@ -62,8 +62,8 @@ services:
     build: .
     command: 'true'
     env_file: ./.env
-    environment: 
-      - NODE_ENV=production 
+    environment:
+      - NODE_ENV=production
       - VALIDATOR_ADDRESS=${VALIDATOR_ADDRESS}
     restart: unless-stopped
     entrypoint: npm run watcher:affirmation-request
@@ -76,8 +76,8 @@ services:
     build: .
     command: 'true'
     env_file: ./.env
-    environment: 
-      - NODE_ENV=production 
+    environment:
+      - NODE_ENV=production
       - VALIDATOR_ADDRESS_PRIVATE_KEY=${VALIDATOR_ADDRESS_PRIVATE_KEY}
     restart: unless-stopped
     entrypoint: npm run sender:home
@@ -90,8 +90,8 @@ services:
     build: .
     command: 'true'
     env_file: ./.env
-    environment: 
-      - NODE_ENV=production 
+    environment:
+      - NODE_ENV=production
       - VALIDATOR_ADDRESS_PRIVATE_KEY=${VALIDATOR_ADDRESS_PRIVATE_KEY}
     restart: unless-stopped
     entrypoint: npm run sender:foreign
