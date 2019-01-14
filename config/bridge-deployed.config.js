@@ -5,7 +5,7 @@ const id = `${baseConfig.id}-bridge-deployed`
 module.exports = {
   ...baseConfig.bridgeConfigBasic,
   ...baseConfig.bridgeMapperConfig,
-  event: 'NewBridgeDeployed',
+  event: 'BridgeMappingAdded',
   name: `watcher-${id}`,
   id
 }
