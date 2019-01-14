@@ -21,6 +21,8 @@ const config = require(path.join('../config/', process.argv[2]))
 const deployedBridgesRedisKey = process.env.DEPLOYED_BRIDGES_REDIS_KEY || 'deployed:bridges'
 const concurrency = process.env.MULTIPLE_BRIDGES_CONCURRENCY || 1
 
+const lastBlockRedisKeyDefault = `${config.id}:lastProcessedBlock`
+
 const processSignatureRequests = require('./events/processSignatureRequests')(config)
 const processCollectedSignatures = require('./events/processCollectedSignatures')(config)
 const processAffirmationRequests = require('./events/processAffirmationRequests')(config)
@@ -174,10 +176,9 @@ async function getDeployedBridges() {
 
 async function main({ sendToQueue }) {
   try {
-    let lastBlockRedisKey = `${config.id}:lastProcessedBlock`
-
     if (config.id.startsWith('erc-erc-multiple')) {
       if (config.id === 'erc-erc-multiple-bridge-deployed') {
+        const lastBlockRedisKey = lastBlockRedisKeyDefault
         const lastProcessedBlock = await getLastProcessedBlock(
           lastBlockRedisKey,
           BN.max(config.startBlock.sub(ONE), ZERO)
@@ -226,7 +227,8 @@ async function main({ sendToQueue }) {
             config.id === 'erc-erc-multiple-affirmation-request'
               ? bridgeObj.foreignToken
               : bridgeContractAddress
-          lastBlockRedisKey += `:${bridgeObj.homeBridge}:${bridgeObj.foreignBridge}`
+          const bridgePair = `${bridgeObj.homeBridge}:${bridgeObj.foreignBridge}`
+          const lastBlockRedisKey = `${lastBlockRedisKeyDefault}:${bridgePair}`
           const lastProcessedBlock = await getLastProcessedBlock(
             lastBlockRedisKey,
             config.id === 'erc-erc-multiple-affirmation-request'
@@ -256,6 +258,7 @@ async function main({ sendToQueue }) {
         })
       }
     } else {
+      const lastBlockRedisKey = lastBlockRedisKeyDefault
       const lastProcessedBlock = await getLastProcessedBlock(
         lastBlockRedisKey,
         BN.max(config.startBlock.sub(ONE), ZERO)
