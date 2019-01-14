@@ -18,11 +18,14 @@ if (process.argv.length < 3) {
 
 const config = require(path.join('../config/', process.argv[2]))
 
+const deployedBridgesRedisKey = process.env.DEPLOYED_BRIDGES_REDIS_KEY || 'deployed:bridges'
+const concurrency = process.env.MULTIPLE_BRIDGES_CONCURRENCY || 1
+
 const processSignatureRequests = require('./events/processSignatureRequests')(config)
 const processCollectedSignatures = require('./events/processCollectedSignatures')(config)
 const processAffirmationRequests = require('./events/processAffirmationRequests')(config)
 const processTransfers = require('./events/processTransfers')(config)
-const processBridgeDeployed = require('./events/processBridgeDeployed')(config)
+const processBridgeDeployed = require('./events/processBridgeDeployed')(deployedBridgesRedisKey)
 
 const ZERO = toBN(0)
 const ONE = toBN(1)
@@ -160,8 +163,9 @@ async function processOne(
 }
 
 async function getDeployedBridges() {
-  // TODO
-  return []
+  return redis
+    .smembers(deployedBridgesRedisKey)
+    .then(deployedBridges => deployedBridges.map(bridge => JSON.parse(bridge)))
 }
 
 async function main({ sendToQueue }) {
@@ -208,12 +212,12 @@ async function main({ sendToQueue }) {
         }
       } else {
         const mapper = async bridgeObj => {
-          const bridgeContractAddress = bridgeObj[`${config.queue}BridgeAddress`]
+          const bridgeContractAddress = bridgeObj[`${config.queue}Bridge`]
           const eventContractAddress =
             config.id === 'erc-erc-multiple-affirmation-request'
-              ? bridgeObj.foreignTokenAddress
+              ? bridgeObj.foreignToken
               : bridgeContractAddress
-          lastBlockRedisKey += `:${bridgeObj.homeBridgeAddress}:${bridgeObj.foreignBridgeAddress}`
+          lastBlockRedisKey += `:${bridgeObj.homeBridge}:${bridgeObj.foreignBridge}`
           const lastProcessedBlock = await getLastProcessedBlock(
             lastBlockRedisKey,
             config.id === 'erc-erc-multiple-affirmation-request'
@@ -224,17 +228,16 @@ async function main({ sendToQueue }) {
             sendToQueue,
             bridgeContractAddress,
             eventContractAddress,
-            bridgeObj.homeBridgeAddress,
-            bridgeObj.foreignBridgeAddress,
+            bridgeObj.homeBridge,
+            bridgeObj.foreignBridge,
             lastProcessedBlock
           )
           return { lastBlockToProcess, lastBlockRedisKey }
         }
 
         const deployedBridges = await getDeployedBridges()
-        const results = await pMap(deployedBridges, mapper, {
-          concurrency: config.concurrency
-        })
+        logger.debug(`Found ${deployedBridges.length} deployed bridges`)
+        const results = await pMap(deployedBridges, mapper, { concurrency })
         results.forEach(async res => {
           logger.debug(
             { lastBlockToProcess: res.lastBlockToProcess.toString() },

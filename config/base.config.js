@@ -111,7 +111,6 @@ const bridgeMapperConfig = {
   eventFilter: {},
   pollingInterval: process.env.HOME_BRIDGE_MAPPER_POLLING_INTERVAL,
   startBlock: toBN(process.env.HOME_BRIDGE_MAPPER_START_BLOCK || 0),
-  concurrency: process.env.MULTIPLE_BRIDGES_CONCURRENCY || 1,
   maxProcessingTime
 }
 
