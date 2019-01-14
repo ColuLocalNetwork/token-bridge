@@ -125,6 +125,10 @@ async function processOne(
   foreignBridgeAddress,
   lastProcessedBlock
 ) {
+  logger.debug(
+    `processOne --> bridgeContractAddress: ${bridgeContractAddress}, eventContractAddress: ${eventContractAddress}, homeBridgeAddress: ${homeBridgeAddress}, foreignBridgeAddress: ${foreignBridgeAddress}, lastProcessedBlock: ${lastProcessedBlock}`
+  )
+
   const bridgeContract = new web3Instance.eth.Contract(config.bridgeAbi, bridgeContractAddress)
   const eventContract = new web3Instance.eth.Contract(config.eventAbi, eventContractAddress)
 
@@ -212,9 +216,12 @@ async function main({ sendToQueue }) {
         }
       } else {
         const mapper = async bridgeObj => {
-          const bridgeContractAddress = bridgeObj[`${config.queue}Bridge`]
           const homeStartBlock = toBN(bridgeObj.homeStartBlock || 0)
           const foreignStartBlock = toBN(bridgeObj.foreignStartBlock || 0)
+          const bridgeContractAddress =
+            config.id === 'erc-erc-multiple-affirmation-request'
+              ? bridgeObj.foreignBridge
+              : bridgeObj.homeBridge
           const eventContractAddress =
             config.id === 'erc-erc-multiple-affirmation-request'
               ? bridgeObj.foreignToken
