@@ -213,6 +213,8 @@ async function main({ sendToQueue }) {
       } else {
         const mapper = async bridgeObj => {
           const bridgeContractAddress = bridgeObj[`${config.queue}Bridge`]
+          const homeStartBlock = toBN(bridgeObj.homeStartBlock || 0)
+          const foreignStartBlock = toBN(bridgeObj.foreignStartBlock || 0)
           const eventContractAddress =
             config.id === 'erc-erc-multiple-affirmation-request'
               ? bridgeObj.foreignToken
@@ -221,8 +223,8 @@ async function main({ sendToQueue }) {
           const lastProcessedBlock = await getLastProcessedBlock(
             lastBlockRedisKey,
             config.id === 'erc-erc-multiple-affirmation-request'
-              ? BN.max(config.foreignStartBlock.sub(ONE), ZERO)
-              : BN.max(config.homeStartBlock.sub(ONE), ZERO)
+              ? BN.max(foreignStartBlock.sub(ONE), ZERO)
+              : BN.max(homeStartBlock.sub(ONE), ZERO)
           )
           const lastBlockToProcess = await processOne(
             sendToQueue,
