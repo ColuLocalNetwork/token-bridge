@@ -18,12 +18,11 @@ if (process.argv.length < 3) {
 
 const config = require(path.join('../config/', process.argv[2]))
 
-const isErcToErcMultiple = config.id.startsWith('erc-erc-multiple')
-
 const processSignatureRequests = require('./events/processSignatureRequests')(config)
 const processCollectedSignatures = require('./events/processCollectedSignatures')(config)
 const processAffirmationRequests = require('./events/processAffirmationRequests')(config)
 const processTransfers = require('./events/processTransfers')(config)
+const processBridgeDeployed = require('./events/processBridgeDeployed')(config)
 
 const ZERO = toBN(0)
 const ONE = toBN(1)
@@ -160,49 +159,96 @@ async function processOne(
   return lastBlockToProcess
 }
 
+async function getDeployedBridges() {
+  // TODO
+  return []
+}
+
 async function main({ sendToQueue }) {
   try {
-    let lastBlockToProcess
+    let lastBlockRedisKey = `${config.id}:lastProcessedBlock`
 
-    if (isErcToErcMultiple) {
-      const mapper = async bridgeObj => {
-        const bridgeContractAddress = bridgeObj[`${config.queue}BridgeAddress`]
-        const eventContractAddress =
-          config.id === 'erc-erc-multiple-affirmation-request'
-            ? bridgeObj.foreignTokenAddress
-            : bridgeContractAddress
-        const lastBlockRedisKey = `${config.id}:lastProcessedBlock
-          :${bridgeObj.homeBridgeAddress}
-          :${bridgeObj.foreignBridgeAddress}`
+    if (config.id.startsWith('erc-erc-multiple')) {
+      if (config.id === 'erc-erc-multiple-bridge-deployed') {
         const lastProcessedBlock = await getLastProcessedBlock(
           lastBlockRedisKey,
-          config.id === 'erc-erc-multiple-affirmation-request'
-            ? BN.max(config.foreignStartBlock.sub(ONE), ZERO)
-            : BN.max(config.homeStartBlock.sub(ONE), ZERO)
+          BN.max(config.startBlock.sub(ONE), ZERO)
         )
-        const lastBlockToProcess = await processOne(
-          sendToQueue,
-          bridgeContractAddress,
-          eventContractAddress,
-          bridgeObj.homeBridgeAddress,
-          bridgeObj.foreignBridgeAddress,
-          lastProcessedBlock
-        )
-        return { lastBlockToProcess, lastBlockRedisKey }
+        const lastBlockToProcess = await getBlockNumber(web3Instance).then(toBN)
+        if (lastBlockToProcess.lte(lastProcessedBlock)) {
+          logger.debug('All blocks already processed')
+        } else {
+          const eventContract = new web3Instance.eth.Contract(
+            config.eventAbi,
+            config.eventContractAddress
+          )
+
+          const fromBlock = lastProcessedBlock.add(ONE)
+          const toBlock = lastBlockToProcess
+
+          const events = await getEvents({
+            contract: eventContract,
+            event: config.event,
+            fromBlock,
+            toBlock,
+            filter: config.eventFilter
+          })
+          logger.info(
+            `Found ${events.length} ${config.event} events for contract address
+              ${eventContract.options.address}`
+          )
+
+          await processBridgeDeployed(events)
+
+          logger.debug(
+            { lastProcessedBlock: lastBlockToProcess.toString() },
+            'Updating last processed block'
+          )
+          await updateLastProcessedBlock(lastBlockRedisKey, lastBlockToProcess)
+        }
+      } else {
+        const mapper = async bridgeObj => {
+          const bridgeContractAddress = bridgeObj[`${config.queue}BridgeAddress`]
+          const eventContractAddress =
+            config.id === 'erc-erc-multiple-affirmation-request'
+              ? bridgeObj.foreignTokenAddress
+              : bridgeContractAddress
+          lastBlockRedisKey += `:${bridgeObj.homeBridgeAddress}:${bridgeObj.foreignBridgeAddress}`
+          const lastProcessedBlock = await getLastProcessedBlock(
+            lastBlockRedisKey,
+            config.id === 'erc-erc-multiple-affirmation-request'
+              ? BN.max(config.foreignStartBlock.sub(ONE), ZERO)
+              : BN.max(config.homeStartBlock.sub(ONE), ZERO)
+          )
+          const lastBlockToProcess = await processOne(
+            sendToQueue,
+            bridgeContractAddress,
+            eventContractAddress,
+            bridgeObj.homeBridgeAddress,
+            bridgeObj.foreignBridgeAddress,
+            lastProcessedBlock
+          )
+          return { lastBlockToProcess, lastBlockRedisKey }
+        }
+
+        const deployedBridges = await getDeployedBridges()
+        const results = await pMap(deployedBridges, mapper, {
+          concurrency: config.concurrency
+        })
+        results.forEach(async res => {
+          logger.debug(
+            { lastBlockToProcess: res.lastBlockToProcess.toString() },
+            `Updating last processed block for key ${res.lastBlockRedisKey}`
+          )
+          await updateLastProcessedBlock(res.lastBlockRedisKey, res.lastBlockToProcess)
+        })
       }
-      const results = await pMap(config.multipleBridges, mapper, { concurrency: 1 }) // TODO should be configurable through ENV
-      results.forEach(async res => {
-        logger.debug(
-          { lastBlockToProcess: res.lastBlockToProcess.toString() },
-          `Updating last processed block for key ${res.lastBlockRedisKey}`
-        )
-        await updateLastProcessedBlock(res.lastBlockRedisKey, res.lastBlockToProcess)
-      })
     } else {
-      const lastBlockRedisKey = `${config.id}:lastProcessedBlock`
-      let lastProcessedBlock = BN.max(config.startBlock.sub(ONE), ZERO)
-      lastProcessedBlock = await getLastProcessedBlock(lastBlockRedisKey, lastProcessedBlock)
-      lastBlockToProcess = await processOne(
+      const lastProcessedBlock = await getLastProcessedBlock(
+        lastBlockRedisKey,
+        BN.max(config.startBlock.sub(ONE), ZERO)
+      )
+      const lastBlockToProcess = await processOne(
         sendToQueue,
         config.bridgeContractAddress,
         config.eventContractAddress,

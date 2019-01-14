@@ -1,0 +1,219 @@
+[
+  {
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "outputs": [],
+    "name": "addBridgeMapping",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "_homeBridge"
+      },
+      {
+        "type": "address",
+        "name": "_foreignBridge"
+      },
+      {
+        "type": "address",
+        "name": "_homeToken"
+      },
+      {
+        "type": "address",
+        "name": "_foreignToken"
+      },
+      {
+        "type": "uint256",
+        "name": "_homeStratBlock"
+      },
+      {
+        "type": "uint256",
+        "name": "_foreignStartBlock"
+      }
+    ],
+    "constant": false
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "payable": false,
+    "outputs": [
+      {
+        "type": "address",
+        "name": ""
+      }
+    ],
+    "name": "foreignBridgeByForeignToken",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "_foreignToken"
+      }
+    ],
+    "constant": true
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "payable": false,
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ],
+    "name": "homeStratBlockByForeignToken",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "_foreignToken"
+      }
+    ],
+    "constant": true
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "payable": false,
+    "outputs": [
+      {
+        "type": "address",
+        "name": ""
+      }
+    ],
+    "name": "owner",
+    "inputs": [],
+    "constant": true
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "payable": false,
+    "outputs": [
+      {
+        "type": "uint256",
+        "name": ""
+      }
+    ],
+    "name": "foreignStartBlockByForeignToken",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "_foreignToken"
+      }
+    ],
+    "constant": true
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "payable": false,
+    "outputs": [
+      {
+        "type": "address",
+        "name": ""
+      }
+    ],
+    "name": "homeBridgeByForeignToken",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "_foreignToken"
+      }
+    ],
+    "constant": true
+  },
+  {
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "outputs": [],
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "newOwner"
+      }
+    ],
+    "constant": false
+  },
+  {
+    "type": "function",
+    "stateMutability": "view",
+    "payable": false,
+    "outputs": [
+      {
+        "type": "address",
+        "name": ""
+      }
+    ],
+    "name": "homeTokenByForeignToken",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "_foreignToken"
+      }
+    ],
+    "constant": true
+  },
+  {
+    "type": "constructor",
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "inputs": []
+  },
+  {
+    "type": "event",
+    "name": "NewBridgeDeployed",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "homeBridge",
+        "indexed": false
+      },
+      {
+        "type": "address",
+        "name": "foreignBridge",
+        "indexed": false
+      },
+      {
+        "type": "address",
+        "name": "homeToken",
+        "indexed": false
+      },
+      {
+        "type": "address",
+        "name": "foreignToken",
+        "indexed": false
+      },
+      {
+        "type": "uint256",
+        "name": "homeStratBlock",
+        "indexed": false
+      },
+      {
+        "type": "uint256",
+        "name": "foreignStartBlock",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "previousOwner",
+        "indexed": false
+      },
+      {
+        "type": "address",
+        "name": "newOwner",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  }
+]

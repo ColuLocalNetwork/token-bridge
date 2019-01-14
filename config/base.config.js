@@ -13,6 +13,8 @@ const foreignErcErcAbi = require('../abis/ForeignBridgeErcToErc.abi')
 const homeErcNativeAbi = require('../abis/HomeBridgeErcToNative.abi')
 const foreignErcNativeAbi = require('../abis/ForeignBridgeErcToNative.abi')
 
+const bridgeMapperAbi = require('../abis/BridgeMapper.abi')
+
 const { VALIDATOR_ADDRESS, VALIDATOR_ADDRESS_PRIVATE_KEY } = process.env
 
 let homeAbi
@@ -102,28 +104,15 @@ const foreignConfig = {
   startBlock: toBN(process.env.FOREIGN_START_BLOCK || 0)
 }
 
-// TODO shouldn't be hardcoded :)
-const multipleBridgesConfig = {
-  multipleBridges: [
-    {
-      // CLN (ropsten) to RCLN (fuse)
-      homeBridgeAddress: '0x65a493469e15e37009a6c44b83387c45746f1559',
-      // homeTokenAddress: '0x71242c1163effa46ddefb16834ef9043854d1b36',
-      homeStartBlock: toBN(672994),
-      foreignBridgeAddress: '0x65a493469E15e37009a6c44b83387C45746f1559',
-      foreignTokenAddress: '0x41C9d91E96b933b74ae21bCBb617369CBE022530',
-      foreignStartBlock: toBN(4708513)
-    },
-    {
-      // SMT (ropsten) to RSMT (fuse)
-      homeBridgeAddress: '0xDe888eb4D162fCf5e3ED47FEdedf1Dd518D2aF31',
-      // homeTokenAddress: '0x3fcD19d7C058c11858dA1354028d90955450Ae12',
-      homeStartBlock: toBN(881242),
-      foreignBridgeAddress: '0x7210c63b6C6C4a57eef6fb941a50ff24D7F6aA94',
-      foreignTokenAddress: '0xE4430c2E8E6cC5cb4D270505F120E1CC9B0b3612',
-      foreignStartBlock: toBN(4785898)
-    }
-  ]
+const bridgeMapperConfig = {
+  web3: web3Home,
+  eventContractAddress: process.env.HOME_BRIDGE_MAPPER_ADDRESS,
+  eventAbi: bridgeMapperAbi,
+  eventFilter: {},
+  pollingInterval: process.env.HOME_BRIDGE_MAPPER_POLLING_INTERVAL,
+  startBlock: toBN(process.env.HOME_BRIDGE_MAPPER_START_BLOCK || 0),
+  concurrency: process.env.MULTIPLE_BRIDGES_CONCURRENCY || 1,
+  maxProcessingTime
 }
 
 module.exports = {
@@ -133,6 +122,6 @@ module.exports = {
   homeConfig,
   foreignConfigBasic,
   foreignConfig,
-  multipleBridgesConfig,
+  bridgeMapperConfig,
   id
 }

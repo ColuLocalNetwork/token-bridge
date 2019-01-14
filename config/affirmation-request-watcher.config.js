@@ -9,7 +9,6 @@ module.exports =
     ? {
         ...baseConfig.bridgeConfigBasic,
         ...baseConfig.foreignConfigBasic,
-        ...baseConfig.multipleBridgesConfig,
         event: 'Transfer',
         eventAbi: erc20Abi,
         queue: 'home',
