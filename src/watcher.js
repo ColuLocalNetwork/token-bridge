@@ -18,7 +18,7 @@ if (process.argv.length < 3) {
 
 const config = require(path.join('../config/', process.argv[2]))
 
-const deployedBridgesRedisKey = process.env.DEPLOYED_BRIDGES_REDIS_KEY || 'deployed:bridges'
+config.deployedBridgesRedisKey = process.env.DEPLOYED_BRIDGES_REDIS_KEY || 'deployed:bridges'
 const concurrency = process.env.MULTIPLE_BRIDGES_CONCURRENCY || 1
 
 const lastBlockRedisKeyDefault = `${config.id}:lastProcessedBlock`
@@ -27,7 +27,7 @@ const processSignatureRequests = require('./events/processSignatureRequests')(co
 const processCollectedSignatures = require('./events/processCollectedSignatures')(config)
 const processAffirmationRequests = require('./events/processAffirmationRequests')(config)
 const processTransfers = require('./events/processTransfers')(config)
-const processBridgeDeployed = require('./events/processBridgeDeployed')(deployedBridgesRedisKey)
+const processBridgeMappingsAdded = require('./events/processBridgeMappingsAdded')(config)
 
 const ZERO = toBN(0)
 const ONE = toBN(1)
@@ -170,7 +170,7 @@ async function processOne(
 
 async function getDeployedBridges() {
   return redis
-    .smembers(deployedBridgesRedisKey)
+    .smembers(config.deployedBridgesRedisKey)
     .then(deployedBridges => deployedBridges.map(bridge => JSON.parse(bridge)))
 }
 
@@ -207,7 +207,7 @@ async function main({ sendToQueue }) {
               ${eventContract.options.address}`
           )
 
-          await processBridgeDeployed(events)
+          await processBridgeMappingsAdded(events)
 
           logger.debug(
             { lastProcessedBlock: lastBlockToProcess.toString() },

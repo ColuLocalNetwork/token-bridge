@@ -6,10 +6,10 @@ const { MAX_CONCURRENT_EVENTS } = require('../../utils/constants')
 
 const limit = promiseLimit(MAX_CONCURRENT_EVENTS)
 
-function processBridgeDeployedBuilder(redisKey) {
-  return async function processBridgeDeployed(bridgesDeployed) {
-    rootLogger.debug(`Processing ${bridgesDeployed.length} NewBridgeDeployed events`)
-    const jobs = bridgesDeployed.map(bridge =>
+function processBridgeMappingsAddedBuilder(config) {
+  return async function processBridgeMappingsAdded(bridgesMappings) {
+    rootLogger.debug(`Processing ${bridgesMappings.length} BridgeMappingAdded events`)
+    const jobs = bridgesMappings.map(bridge =>
       limit(async () => {
         const {
           homeBridge,
@@ -37,7 +37,7 @@ function processBridgeDeployedBuilder(redisKey) {
         )
 
         return redis.sadd(
-          redisKey,
+          config.deployedBridgesRedisKey,
           JSON.stringify({
             homeBridge,
             foreignBridge,
@@ -54,4 +54,4 @@ function processBridgeDeployedBuilder(redisKey) {
   }
 }
 
-module.exports = processBridgeDeployedBuilder
+module.exports = processBridgeMappingsAddedBuilder
