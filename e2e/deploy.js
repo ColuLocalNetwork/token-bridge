@@ -16,6 +16,12 @@ shell.cp(path.join(envsDir, 'erc-contracts-deploy.env'), path.join(deployContrac
 shell.exec('node deploy.js')
 shell.rm('.env')
 shell.cp(
+  path.join(envsDir, 'erc-multiple-contracts-deploy.env'),
+  path.join(deployContractsDir, '.env')
+)
+shell.exec('node deploy.js')
+shell.rm('.env')
+shell.cp(
   path.join(envsDir, 'erc-native-contracts-deploy.env'),
   path.join(deployContractsDir, '.env')
 )
