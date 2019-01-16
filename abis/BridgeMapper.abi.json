@@ -142,6 +142,20 @@
   },
   {
     "type": "function",
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "outputs": [],
+    "name": "initialize",
+    "inputs": [
+      {
+        "type": "address",
+        "name": "_owner"
+      }
+    ],
+    "constant": false
+  },
+  {
+    "type": "function",
     "stateMutability": "view",
     "payable": false,
     "outputs": [
@@ -191,12 +205,6 @@
       }
     ],
     "constant": true
-  },
-  {
-    "type": "constructor",
-    "stateMutability": "nonpayable",
-    "payable": false,
-    "inputs": []
   },
   {
     "type": "event",
