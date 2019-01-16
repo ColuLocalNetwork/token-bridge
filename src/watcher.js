@@ -125,10 +125,11 @@ async function processOne(
   eventContractAddress,
   homeBridgeAddress,
   foreignBridgeAddress,
+  eventFilter,
   lastProcessedBlock
 ) {
   logger.debug(
-    `processOne --> bridgeContractAddress: ${bridgeContractAddress}, eventContractAddress: ${eventContractAddress}, homeBridgeAddress: ${homeBridgeAddress}, foreignBridgeAddress: ${foreignBridgeAddress}, lastProcessedBlock: ${lastProcessedBlock}`
+    `processOne --> bridgeContractAddress: ${bridgeContractAddress}, eventContractAddress: ${eventContractAddress}, homeBridgeAddress: ${homeBridgeAddress}, foreignBridgeAddress: ${foreignBridgeAddress}, eventFilter: ${eventFilter}, lastProcessedBlock: ${lastProcessedBlock}`
   )
 
   const bridgeContract = new web3Instance.eth.Contract(config.bridgeAbi, bridgeContractAddress)
@@ -149,7 +150,7 @@ async function processOne(
     event: config.event,
     fromBlock,
     toBlock,
-    filter: config.eventFilter
+    filter: eventFilter
   })
   logger.info(
     `Found ${events.length} ${config.event} events for contract address
@@ -227,6 +228,10 @@ async function main({ sendToQueue }) {
             config.id === 'erc-erc-multiple-affirmation-request'
               ? bridgeObj.foreignToken
               : bridgeContractAddress
+          const eventFilter =
+            config.id === 'erc-erc-multiple-affirmation-request'
+              ? { to: bridgeObj.foreignBridge }
+              : {}
           const bridgePair = `${bridgeObj.homeBridge}:${bridgeObj.foreignBridge}`
           const lastBlockRedisKey = `${lastBlockRedisKeyDefault}:${bridgePair}`
           const lastProcessedBlock = await getLastProcessedBlock(
@@ -241,6 +246,7 @@ async function main({ sendToQueue }) {
             eventContractAddress,
             bridgeObj.homeBridge,
             bridgeObj.foreignBridge,
+            eventFilter,
             lastProcessedBlock
           )
           return { lastBlockToProcess, lastBlockRedisKey }
@@ -272,6 +278,7 @@ async function main({ sendToQueue }) {
         config.eventContractAddress,
         config.homeBridgeAddress,
         config.foreignBridgeAddress,
+        config.eventFilter,
         lastProcessedBlock
       )
       logger.debug(
