@@ -257,6 +257,9 @@ async function main({ sendToQueue }) {
           await updateLastProcessedBlock(res.lastBlockRedisKey, res.lastBlockToProcess)
         })
       }
+    } else if (config.id.includes('bridge-deployed')) {
+      logger.warn(`watcher '${config.id}' irrelevant for bridge mode '${process.env.BRIDGE_MODE}'`)
+      process.exit(EXIT_CODES.IRRELEVANT)
     } else {
       const lastBlockRedisKey = lastBlockRedisKeyDefault
       const lastProcessedBlock = await getLastProcessedBlock(
