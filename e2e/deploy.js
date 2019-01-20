@@ -26,3 +26,15 @@ shell.cp(
 )
 shell.exec('node src/utils/deployBlockReward.js')
 shell.exec('node deploy.js')
+
+// ERC_TO_ERC_MULTIPLE
+shell.cp(
+  path.join(envsDir, 'erc-multiple-contracts-deploy.env'),
+  path.join(deployContractsDir, '.env')
+)
+shell.exec('node deploy.js')
+shell.cd(scriptDir)
+shell.exec('node deployERC20.js')
+shell.exec('node deployBridgesAndUpdateMapper.js')
+shell.cd(deployContractsDir)
+shell.rm('.env')
