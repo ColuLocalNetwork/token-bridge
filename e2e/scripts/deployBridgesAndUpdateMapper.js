@@ -31,59 +31,95 @@ const {
   BRIDGEABLE_TOKEN_DECIMALS
 } = process.env
 
+const foreignBridgeData = {}
+const homeBridgeData = {}
+const bridgeMapping = {}
+
+async function deployForeignBridge() {
+  let foreignNonce = await web3Foreign.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
+  console.log('\n[Foreign] Deploying foreign bridge using factory')
+  const foreignFactory = new web3Foreign.eth.Contract(
+    ForeignBridgeFactoryABI,
+    FOREIGN_BRIDGE_FACTORY_ADDRESS
+  )
+  const deployForeignBridgeData = await foreignFactory.methods
+    .deployForeignBridge(ERC20_TOKEN_ADDRESS)
+    .encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
+  await sendRawTx({
+    data: deployForeignBridgeData,
+    nonce: foreignNonce,
+    to: foreignFactory.options.address,
+    privateKey: deploymentPrivateKey,
+    url: process.env.FOREIGN_RPC_URL
+  })
+  const foreignBridgeDeployedEvents = await foreignFactory.getPastEvents('ForeignBridgeDeployed')
+  foreignBridgeData.adderss = foreignBridgeDeployedEvents[0].returnValues._foreignBridge
+  foreignBridgeData.blockNumber = foreignBridgeDeployedEvents[0].returnValues._blockNumber
+  console.log('\n[Foreign] Deployed foreign bridge:' + JSON.stringify(foreignBridgeData))
+}
+
+async function deployHomeBridge() {
+  let homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
+  console.log('\n[Home] Deploying home bridge using factory')
+  const homeFactory = new web3Home.eth.Contract(
+    HomeBridgeFactoryABI,
+    HOME_BRIDGE_FACTORY_ADDRESS
+  )
+  const deployHomeBridgeData = await homeFactory.methods
+    .deployHomeBridge(BRIDGEABLE_TOKEN_NAME, BRIDGEABLE_TOKEN_SYMBOL, BRIDGEABLE_TOKEN_DECIMALS)
+    .encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
+  await sendRawTx({
+    data: deployHomeBridgeData,
+    nonce: homeNonce,
+    to: homeFactory.options.address,
+    privateKey: deploymentPrivateKey,
+    url: process.env.HOME_RPC_URL
+  })
+  const homeBridgeDeployedEvents = await homeFactory.getPastEvents('HomeBridgeDeployed')
+  homeBridgeData.address = homeBridgeDeployedEvents[0].returnValues._homeBridge
+  homeBridgeData.token = homeBridgeDeployedEvents[0].returnValues._token
+  homeBridgeData.blockNumber = homeBridgeDeployedEvents[0].returnValues._blockNumber
+  console.log('\n[Home] Deployed home bridge:' + JSON.stringify(homeBridgeData))
+}
+
+async function addBridgeMapping() {
+  let homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
+  console.log('\n[Home] Add bridge mapping')
+  const mapper = new web3Home.eth.Contract(
+    BridgeMapperABI,
+    HOME_BRIDGE_MAPPER_ADDRESS
+  )
+  const addBridgeMappingData = await mapper.methods
+    .addBridgeMapping(
+      ERC20_TOKEN_ADDRESS,
+      homeBridgeData.token,
+      foreignBridgeData.adderss,
+      homeBridgeData.address,
+      foreignBridgeData.blockNumber,
+      homeBridgeData.blockNumber
+    ).encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
+  await sendRawTx({
+    data: addBridgeMappingData,
+    nonce: homeNonce,
+    to: mapper.options.address,
+    privateKey: deploymentPrivateKey,
+    url: process.env.HOME_RPC_URL
+  })
+  const bridgeMappingAddedEvents = await mapper.getPastEvents('BridgeMappingAdded')
+  bridgeMapping.foreignToken = bridgeMappingAddedEvents[0].returnValues.foreignToken
+  bridgeMapping.homeToken = bridgeMappingAddedEvents[0].returnValues.homeToken
+  bridgeMapping.foreignBridge = bridgeMappingAddedEvents[0].returnValues.foreignBridge
+  bridgeMapping.homeBridge = bridgeMappingAddedEvents[0].returnValues.homeBridge
+  bridgeMapping.foreignStartBlock = bridgeMappingAddedEvents[0].returnValues.foreignStartBlock
+  bridgeMapping.homeStartBlock = bridgeMappingAddedEvents[0].returnValues.homeStartBlock
+  console.log('\n[Home] bridge mapping added: ' + JSON.stringify(bridgeMapping))
+}
+
 async function deploy() {
   try {
-    // deploy foreign bridge
-    let foreignNonce = await web3Foreign.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
-    console.log('\n[Foreign] Deploying foreign bridge using factory')
-    const foreignFactory = new web3Foreign.eth.Contract(
-      ForeignBridgeFactoryABI,
-      FOREIGN_BRIDGE_FACTORY_ADDRESS
-    )
-    const deployForeignBridgeData = await foreignFactory.methods
-      .deployForeignBridge(ERC20_TOKEN_ADDRESS)
-      .encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
-    await sendRawTx({
-      data: deployForeignBridgeData,
-      nonce: foreignNonce,
-      to: foreignFactory.options.address,
-      privateKey: deploymentPrivateKey,
-      url: process.env.FOREIGN_RPC_URL
-    })
-    const foreignBridgeDeployedEvents = await foreignFactory.getPastEvents('ForeignBridgeDeployed', {fromBlock: 0})
-    const foreigBridgeData = {
-      adderss: foreignBridgeDeployedEvents[0].returnValues._foreignBridge,
-      blockNumber: foreignBridgeDeployedEvents[0].returnValues._blockNumber,
-    }
-    console.log('\n[Foreign] Deployed foreign bridge:' + JSON.stringify(foreigBridgeData))
-
-    // deploy home bridge
-    let homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
-    console.log('\n[Home] Deploying home bridge using factory')
-    const homeFactory = new web3Home.eth.Contract(
-      HomeBridgeFactoryABI,
-      HOME_BRIDGE_FACTORY_ADDRESS
-    )
-    const deployHomeBridgeData = await homeFactory.methods
-      .deployHomeBridge(BRIDGEABLE_TOKEN_NAME, BRIDGEABLE_TOKEN_SYMBOL, BRIDGEABLE_TOKEN_DECIMALS)
-      .encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
-    await sendRawTx({
-      data: deployHomeBridgeData,
-      nonce: homeNonce,
-      to: homeFactory.options.address,
-      privateKey: deploymentPrivateKey,
-      url: process.env.HOME_RPC_URL
-    })
-    const homeBridgeDeployedEvents = await homeFactory.getPastEvents('HomeBridgeDeployed', {fromBlock: 0})
-    const homeBridgeData = {
-      address: homeBridgeDeployedEvents[0].returnValues._homeBridge,
-      token: homeBridgeDeployedEvents[0].returnValues._token,
-      blockNumber: homeBridgeDeployedEvents[0].returnValues._blockNumber
-    }
-    console.log('\n[Home] Deployed home bridge:' + JSON.stringify(homeBridgeData))
-    homeNonce++
-
-    // TODO add bridge mapping
+    await deployForeignBridge()
+    await deployHomeBridge()
+    await addBridgeMapping()
   } catch (e) {
     console.log(e)
   }
