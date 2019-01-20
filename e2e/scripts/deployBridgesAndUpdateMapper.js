@@ -25,7 +25,10 @@ const {
   HOME_BRIDGE_MAPPER_ADDRESS,
   HOME_BRIDGE_FACTORY_ADDRESS,
   FOREIGN_BRIDGE_FACTORY_ADDRESS,
-  ERC20_TOKEN_ADDRESS
+  ERC20_TOKEN_ADDRESS,
+  BRIDGEABLE_TOKEN_NAME,
+  BRIDGEABLE_TOKEN_SYMBOL,
+  BRIDGEABLE_TOKEN_DECIMALS
 } = process.env
 
 async function deploy() {
@@ -48,12 +51,39 @@ async function deploy() {
       url: process.env.FOREIGN_RPC_URL
     })
     const foreignBridgeDeployedEvents = await foreignFactory.getPastEvents('ForeignBridgeDeployed', {fromBlock: 0})
-    process.env.FOREIGN_BRIDGE_ADDRESS = foreignBridgeDeployedEvents[0].returnValues._foreignBridge
-    console.log('\n[Foreign] Deployed foreign bridge at: ' + process.env.FOREIGN_BRIDGE_ADDRESS)
+    const foreigBridgeData = {
+      adderss: foreignBridgeDeployedEvents[0].returnValues._foreignBridge,
+      blockNumber: foreignBridgeDeployedEvents[0].returnValues._blockNumber,
+    }
+    console.log('\n[Foreign] Deployed foreign bridge:' + JSON.stringify(foreigBridgeData))
 
     // deploy home bridge
+    let homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
+    console.log('\n[Home] Deploying home bridge using factory')
+    const homeFactory = new web3Home.eth.Contract(
+      HomeBridgeFactoryABI,
+      HOME_BRIDGE_FACTORY_ADDRESS
+    )
+    const deployHomeBridgeData = await homeFactory.methods
+      .deployHomeBridge(BRIDGEABLE_TOKEN_NAME, BRIDGEABLE_TOKEN_SYMBOL, BRIDGEABLE_TOKEN_DECIMALS)
+      .encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
+    await sendRawTx({
+      data: deployHomeBridgeData,
+      nonce: homeNonce,
+      to: homeFactory.options.address,
+      privateKey: deploymentPrivateKey,
+      url: process.env.HOME_RPC_URL
+    })
+    const homeBridgeDeployedEvents = await homeFactory.getPastEvents('HomeBridgeDeployed', {fromBlock: 0})
+    const homeBridgeData = {
+      address: homeBridgeDeployedEvents[0].returnValues._homeBridge,
+      token: homeBridgeDeployedEvents[0].returnValues._token,
+      blockNumber: homeBridgeDeployedEvents[0].returnValues._blockNumber
+    }
+    console.log('\n[Home] Deployed home bridge:' + JSON.stringify(homeBridgeData))
+    homeNonce++
 
-    // add bridge mapping
+    // TODO add bridge mapping
   } catch (e) {
     console.log(e)
   }
