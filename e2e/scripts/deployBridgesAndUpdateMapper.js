@@ -4,21 +4,19 @@ require('dotenv').config({
   path: path.join(__dirname, '../submodules/poa-bridge-contracts/deploy/.env')
 })
 
-const {
-  sendRawTx,
-  getReceipt
-} = require('../submodules/poa-bridge-contracts/deploy/src/deploymentUtils')
+const { sendRawTx } = require('../submodules/poa-bridge-contracts/deploy/src/deploymentUtils')
 const {
   web3Foreign,
   web3Home,
   deploymentPrivateKey
 } = require('../submodules/poa-bridge-contracts/deploy/src/web3')
 
-const ForeignBridgeFactoryABI = require('../submodules/poa-bridge-contracts/build/contracts/ForeignBridgeFactory.json').abi
-const HomeBridgeFactoryABI = require('../submodules/poa-bridge-contracts/build/contracts/HomeBridgeFactory.json').abi
-const BridgeMapperABI = require('../submodules/poa-bridge-contracts/build/contracts/BridgeMapper.json').abi
-
-const { user } = require('../constants.json')
+const ForeignBridgeFactoryABI = require('../submodules/poa-bridge-contracts/build/contracts/ForeignBridgeFactory.json')
+  .abi
+const HomeBridgeFactoryABI = require('../submodules/poa-bridge-contracts/build/contracts/HomeBridgeFactory.json')
+  .abi
+const BridgeMapperABI = require('../submodules/poa-bridge-contracts/build/contracts/BridgeMapper.json')
+  .abi
 
 const {
   DEPLOYMENT_ACCOUNT_ADDRESS,
@@ -36,7 +34,7 @@ const homeBridgeData = {}
 const bridgeMapping = {}
 
 async function deployForeignBridge() {
-  let foreignNonce = await web3Foreign.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
+  const foreignNonce = await web3Foreign.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
   console.log('\n[Foreign] Deploying foreign bridge using factory')
   const foreignFactory = new web3Foreign.eth.Contract(
     ForeignBridgeFactoryABI,
@@ -44,7 +42,7 @@ async function deployForeignBridge() {
   )
   const deployForeignBridgeData = await foreignFactory.methods
     .deployForeignBridge(ERC20_TOKEN_ADDRESS)
-    .encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
+    .encodeABI({ from: DEPLOYMENT_ACCOUNT_ADDRESS })
   await sendRawTx({
     data: deployForeignBridgeData,
     nonce: foreignNonce,
@@ -55,19 +53,16 @@ async function deployForeignBridge() {
   const foreignBridgeDeployedEvents = await foreignFactory.getPastEvents('ForeignBridgeDeployed')
   foreignBridgeData.adderss = foreignBridgeDeployedEvents[0].returnValues._foreignBridge
   foreignBridgeData.blockNumber = foreignBridgeDeployedEvents[0].returnValues._blockNumber
-  console.log('\n[Foreign] Deployed foreign bridge:' + JSON.stringify(foreignBridgeData))
+  console.log('\n[Foreign] Deployed foreign bridge:', JSON.stringify(foreignBridgeData))
 }
 
 async function deployHomeBridge() {
-  let homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
+  const homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
   console.log('\n[Home] Deploying home bridge using factory')
-  const homeFactory = new web3Home.eth.Contract(
-    HomeBridgeFactoryABI,
-    HOME_BRIDGE_FACTORY_ADDRESS
-  )
+  const homeFactory = new web3Home.eth.Contract(HomeBridgeFactoryABI, HOME_BRIDGE_FACTORY_ADDRESS)
   const deployHomeBridgeData = await homeFactory.methods
     .deployHomeBridge(BRIDGEABLE_TOKEN_NAME, BRIDGEABLE_TOKEN_SYMBOL, BRIDGEABLE_TOKEN_DECIMALS)
-    .encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
+    .encodeABI({ from: DEPLOYMENT_ACCOUNT_ADDRESS })
   await sendRawTx({
     data: deployHomeBridgeData,
     nonce: homeNonce,
@@ -79,16 +74,13 @@ async function deployHomeBridge() {
   homeBridgeData.address = homeBridgeDeployedEvents[0].returnValues._homeBridge
   homeBridgeData.token = homeBridgeDeployedEvents[0].returnValues._token
   homeBridgeData.blockNumber = homeBridgeDeployedEvents[0].returnValues._blockNumber
-  console.log('\n[Home] Deployed home bridge:' + JSON.stringify(homeBridgeData))
+  console.log('\n[Home] Deployed home bridge:', JSON.stringify(homeBridgeData))
 }
 
 async function addBridgeMapping() {
-  let homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
+  const homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
   console.log('\n[Home] Add bridge mapping')
-  const mapper = new web3Home.eth.Contract(
-    BridgeMapperABI,
-    HOME_BRIDGE_MAPPER_ADDRESS
-  )
+  const mapper = new web3Home.eth.Contract(BridgeMapperABI, HOME_BRIDGE_MAPPER_ADDRESS)
   const addBridgeMappingData = await mapper.methods
     .addBridgeMapping(
       ERC20_TOKEN_ADDRESS,
@@ -97,7 +89,8 @@ async function addBridgeMapping() {
       homeBridgeData.address,
       foreignBridgeData.blockNumber,
       homeBridgeData.blockNumber
-    ).encodeABI( {from: DEPLOYMENT_ACCOUNT_ADDRESS} )
+    )
+    .encodeABI({ from: DEPLOYMENT_ACCOUNT_ADDRESS })
   await sendRawTx({
     data: addBridgeMappingData,
     nonce: homeNonce,
@@ -112,7 +105,7 @@ async function addBridgeMapping() {
   bridgeMapping.homeBridge = bridgeMappingAddedEvents[0].returnValues.homeBridge
   bridgeMapping.foreignStartBlock = bridgeMappingAddedEvents[0].returnValues.foreignStartBlock
   bridgeMapping.homeStartBlock = bridgeMappingAddedEvents[0].returnValues.homeStartBlock
-  console.log('\n[Home] bridge mapping added: ' + JSON.stringify(bridgeMapping))
+  console.log('\n[Home] bridge mapping added: ', JSON.stringify(bridgeMapping))
 }
 
 async function deploy() {
