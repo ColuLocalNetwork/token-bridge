@@ -23,17 +23,12 @@ const {
   HOME_BRIDGE_MAPPER_ADDRESS,
   HOME_BRIDGE_FACTORY_ADDRESS,
   FOREIGN_BRIDGE_FACTORY_ADDRESS,
-  ERC20_TOKEN_ADDRESS,
   BRIDGEABLE_TOKEN_NAME,
   BRIDGEABLE_TOKEN_SYMBOL,
   BRIDGEABLE_TOKEN_DECIMALS
 } = process.env
 
-const foreignBridgeData = {}
-const homeBridgeData = {}
-const bridgeMapping = {}
-
-async function deployForeignBridge() {
+async function deployForeignBridge(erc20Token) {
   const foreignNonce = await web3Foreign.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
   console.log('\n[Foreign] Deploying foreign bridge using factory')
   const foreignFactory = new web3Foreign.eth.Contract(
@@ -41,7 +36,7 @@ async function deployForeignBridge() {
     FOREIGN_BRIDGE_FACTORY_ADDRESS
   )
   const deployForeignBridgeData = await foreignFactory.methods
-    .deployForeignBridge(ERC20_TOKEN_ADDRESS)
+    .deployForeignBridge(erc20Token)
     .encodeABI({ from: DEPLOYMENT_ACCOUNT_ADDRESS })
   await sendRawTx({
     data: deployForeignBridgeData,
@@ -51,17 +46,24 @@ async function deployForeignBridge() {
     url: process.env.FOREIGN_RPC_URL
   })
   const foreignBridgeDeployedEvents = await foreignFactory.getPastEvents('ForeignBridgeDeployed')
-  foreignBridgeData.adderss = foreignBridgeDeployedEvents[0].returnValues._foreignBridge
-  foreignBridgeData.blockNumber = foreignBridgeDeployedEvents[0].returnValues._blockNumber
-  console.log('\n[Foreign] Deployed foreign bridge:', JSON.stringify(foreignBridgeData))
+  const result = {
+    foreignBridgeAdderss: foreignBridgeDeployedEvents[0].returnValues._foreignBridge,
+    foreignBridgeBlockNumber: foreignBridgeDeployedEvents[0].returnValues._blockNumber
+  }
+  console.log('\n[Foreign] Deployed foreign bridge:', JSON.stringify(result))
+  return result
 }
 
-async function deployHomeBridge() {
+async function deployHomeBridge(suffix) {
   const homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
   console.log('\n[Home] Deploying home bridge using factory')
   const homeFactory = new web3Home.eth.Contract(HomeBridgeFactoryABI, HOME_BRIDGE_FACTORY_ADDRESS)
   const deployHomeBridgeData = await homeFactory.methods
-    .deployHomeBridge(BRIDGEABLE_TOKEN_NAME, BRIDGEABLE_TOKEN_SYMBOL, BRIDGEABLE_TOKEN_DECIMALS)
+    .deployHomeBridge(
+      BRIDGEABLE_TOKEN_NAME + suffix,
+      BRIDGEABLE_TOKEN_SYMBOL,
+      BRIDGEABLE_TOKEN_DECIMALS
+    )
     .encodeABI({ from: DEPLOYMENT_ACCOUNT_ADDRESS })
   await sendRawTx({
     data: deployHomeBridgeData,
@@ -71,24 +73,34 @@ async function deployHomeBridge() {
     url: process.env.HOME_RPC_URL
   })
   const homeBridgeDeployedEvents = await homeFactory.getPastEvents('HomeBridgeDeployed')
-  homeBridgeData.address = homeBridgeDeployedEvents[0].returnValues._homeBridge
-  homeBridgeData.token = homeBridgeDeployedEvents[0].returnValues._token
-  homeBridgeData.blockNumber = homeBridgeDeployedEvents[0].returnValues._blockNumber
-  console.log('\n[Home] Deployed home bridge:', JSON.stringify(homeBridgeData))
+  const result = {
+    homeBridgeAddress: homeBridgeDeployedEvents[0].returnValues._homeBridge,
+    homeBridgeToken: homeBridgeDeployedEvents[0].returnValues._token,
+    homeBridgeBlockNumber: homeBridgeDeployedEvents[0].returnValues._blockNumber
+  }
+  console.log('\n[Home] Deployed home bridge:', JSON.stringify(result))
+  return result
 }
 
-async function addBridgeMapping() {
+async function addBridgeMapping(
+  foreignToken,
+  homeToken,
+  foreignBridge,
+  homeBridge,
+  foreignBlockNumber,
+  homeBlockNumber
+) {
   const homeNonce = await web3Home.eth.getTransactionCount(DEPLOYMENT_ACCOUNT_ADDRESS)
   console.log('\n[Home] Add bridge mapping')
   const mapper = new web3Home.eth.Contract(BridgeMapperABI, HOME_BRIDGE_MAPPER_ADDRESS)
   const addBridgeMappingData = await mapper.methods
     .addBridgeMapping(
-      ERC20_TOKEN_ADDRESS,
-      homeBridgeData.token,
-      foreignBridgeData.adderss,
-      homeBridgeData.address,
-      foreignBridgeData.blockNumber,
-      homeBridgeData.blockNumber
+      foreignToken,
+      homeToken,
+      foreignBridge,
+      homeBridge,
+      foreignBlockNumber,
+      homeBlockNumber
     )
     .encodeABI({ from: DEPLOYMENT_ACCOUNT_ADDRESS })
   await sendRawTx({
@@ -99,20 +111,37 @@ async function addBridgeMapping() {
     url: process.env.HOME_RPC_URL
   })
   const bridgeMappingAddedEvents = await mapper.getPastEvents('BridgeMappingAdded')
-  bridgeMapping.foreignToken = bridgeMappingAddedEvents[0].returnValues.foreignToken
-  bridgeMapping.homeToken = bridgeMappingAddedEvents[0].returnValues.homeToken
-  bridgeMapping.foreignBridge = bridgeMappingAddedEvents[0].returnValues.foreignBridge
-  bridgeMapping.homeBridge = bridgeMappingAddedEvents[0].returnValues.homeBridge
-  bridgeMapping.foreignStartBlock = bridgeMappingAddedEvents[0].returnValues.foreignStartBlock
-  bridgeMapping.homeStartBlock = bridgeMappingAddedEvents[0].returnValues.homeStartBlock
+  const bridgeMapping = {
+    foreignToken: bridgeMappingAddedEvents[0].returnValues.foreignToken,
+    homeToken: bridgeMappingAddedEvents[0].returnValues.homeToken,
+    foreignBridge: bridgeMappingAddedEvents[0].returnValues.foreignBridge,
+    homeBridge: bridgeMappingAddedEvents[0].returnValues.homeBridge,
+    foreignStartBlock: bridgeMappingAddedEvents[0].returnValues.foreignStartBlock,
+    homeStartBlock: bridgeMappingAddedEvents[0].returnValues.homeStartBlock
+  }
   console.log('\n[Home] bridge mapping added: ', JSON.stringify(bridgeMapping))
+}
+
+async function addBridgeForToken(index) {
+  const token = process.env[`ERC20_TOKEN_ADDRESS_${index}`]
+  const { foreignBridgeAdderss, foreignBridgeBlockNumber } = await deployForeignBridge(token)
+  const { homeBridgeAddress, homeBridgeToken, homeBridgeBlockNumber } = await deployHomeBridge(
+    index
+  )
+  await addBridgeMapping(
+    token,
+    homeBridgeToken,
+    foreignBridgeAdderss,
+    homeBridgeAddress,
+    foreignBridgeBlockNumber,
+    homeBridgeBlockNumber
+  )
 }
 
 async function deploy() {
   try {
-    await deployForeignBridge()
-    await deployHomeBridge()
-    await addBridgeMapping()
+    await addBridgeForToken('1')
+    await addBridgeForToken('2')
   } catch (e) {
     console.log(e)
   }

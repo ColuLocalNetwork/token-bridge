@@ -35,6 +35,7 @@ shell.cp(
 shell.exec('node deploy.js')
 shell.cd(scriptDir)
 shell.exec('node deployERC20.js')
+shell.exec('node deployERC20.js')
 shell.exec('node deployBridgesAndUpdateMapper.js')
 shell.cd(deployContractsDir)
 shell.rm('.env')
