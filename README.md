@@ -46,14 +46,13 @@ For example, smart contracts can allocate resource intensive operations to a sid
 
  * **Home** - or Native - is a network with fast and inexpensive operations. All bridge operations to collect validator confirmations are performed on this side of the bridge.
 
-* **Foreign** can be any chain, but generally refers to the Ethereum mainnet.
+ * **Foreign** can be any chain, but generally refers to the Ethereum mainnet.
 
 ### Operational Modes
 
 The POA bridge currently provides fout operational modes.
 
 - [x] `Native-to-ERC20` **Coins** on a Home network can be converted to ERC20-compatible **tokens** on a Foreign network. Coins are locked on the Home side and the corresponding amount of ERC20 tokens are minted on the Foreign side. When the operation is reversed, tokens are burnt on the Foreign side and unlocked in the Home network.
-
 
 - [x] `ERC20-to-ERC20` ERC20-compatible tokens on the Foreign network are locked and minted as ERC20-compatible tokens (ERC677 tokens) on the Home network. When transferred from Home to Foreign, they are burnt on the Home side and unlocked in the Foreign network. This can be considered a form of atomic swap when a user swaps the token "X" in network "A" to the token "Y" in network "B".
 
@@ -77,7 +76,6 @@ The POA bridge currently provides fout operational modes.
 A watcher listens for a certain event and creates proper jobs in the queue. These jobs contain the transaction data (without the nonce) and the transaction hash for the related event. The watcher runs on a given frequency, keeping track of the last processed block.
 
 If the watcher observes that the transaction data cannot be prepared, which generally means that the corresponding method of the bridge contract cannot be invoked, it inspects the contract state to identify the potential reason for failure and records this in the logs.
-
 
 There are four Watchers:
 
