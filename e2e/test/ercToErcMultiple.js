@@ -44,12 +44,17 @@ const erc677Token2 = new homeWeb3.eth.Contract(
 describe('erc to erc (multiple)', () => {
   describe('1st deployed bridge', () => {
     it('should convert tokens in foreign to tokens in home', async () => {
-      const balance = await erc20Token1.methods.balanceOf(user.address).call()
-      assert(!toBN(balance).isZero(), 'Account should have tokens')
+      const foreignBalance = await erc20Token1.methods.balanceOf(user.address).call()
+      assert(!toBN(foreignBalance).isZero(), 'Account should have tokens in foreign')
+
+      const homeBalance = await erc677Token1.methods.balanceOf(user.address).call()
+      assert(toBN(homeBalance).isZero(), 'Account should not have tokens in home')
+
+      const amount = homeWeb3.utils.toWei('0.01')
 
       // send tokens to foreign bridge
       await erc20Token1.methods
-        .transfer(FOREIGN_BRIDGE_ADDRESS_1, homeWeb3.utils.toWei('0.01'))
+        .transfer(FOREIGN_BRIDGE_ADDRESS_1, amount)
         .send({
           from: user.address,
           gas: '1000000'
@@ -65,22 +70,24 @@ describe('erc to erc (multiple)', () => {
       // check that balance increases
       await promiseRetry(async retry => {
         const balance = await erc677Token1.methods.balanceOf(user.address).call()
-        if (toBN(balance).isZero()) {
+        if (!toBN(balance).eq(toBN(amount))) {
           retry()
         }
       })
     })
 
     it('should convert tokens in home to tokens in foreign', async () => {
-      const originalBalance = await erc20Token1.methods.balanceOf(user.address).call()
+      const foreignBalance = await erc20Token1.methods.balanceOf(user.address).call()
 
       // check that account has tokens in home chain
-      const balance = await erc677Token1.methods.balanceOf(user.address).call()
-      assert(!toBN(balance).isZero(), 'Account should have tokens')
+      const homeBalance = await erc677Token1.methods.balanceOf(user.address).call()
+      assert(!toBN(homeBalance).isZero(), 'Account should have tokens in home')
+
+      const amount = homeWeb3.utils.toWei('0.01')
 
       // send transaction to home bridge
       const depositTx = await erc677Token1.methods
-        .transferAndCall(HOME_BRIDGE_ADDRESS_1, homeWeb3.utils.toWei('0.01'), '0x')
+        .transferAndCall(HOME_BRIDGE_ADDRESS_1, amount, '0x')
         .send({
           from: user.address,
           gas: '1000000'
@@ -114,7 +121,8 @@ describe('erc to erc (multiple)', () => {
       // check that balance increases
       await promiseRetry(async retry => {
         const balance = await erc20Token1.methods.balanceOf(user.address).call()
-        if (toBN(balance).lte(toBN(originalBalance))) {
+        const shouldBeBalance = toBN(foreignBalance).add(toBN(amount))
+        if (!toBN(balance).eq(shouldBeBalance)) {
           retry()
         }
       })
@@ -123,12 +131,17 @@ describe('erc to erc (multiple)', () => {
 
   describe('2nd deployed bridge', () => {
     it('should convert tokens in foreign to tokens in home', async () => {
-      const balance = await erc20Token2.methods.balanceOf(user.address).call()
-      assert(!toBN(balance).isZero(), 'Account should have tokens')
+      const foreignBalance = await erc20Token2.methods.balanceOf(user.address).call()
+      assert(!toBN(foreignBalance).isZero(), 'Account should have tokens in foreign')
+
+      const homeBalance = await erc677Token2.methods.balanceOf(user.address).call()
+      assert(toBN(homeBalance).isZero(), 'Account should not have tokens in home')
+
+      const amount = homeWeb3.utils.toWei('0.01')
 
       // send tokens to foreign bridge
       await erc20Token2.methods
-        .transfer(FOREIGN_BRIDGE_ADDRESS_2, homeWeb3.utils.toWei('0.01'))
+        .transfer(FOREIGN_BRIDGE_ADDRESS_2, amount)
         .send({
           from: user.address,
           gas: '1000000'
@@ -144,22 +157,24 @@ describe('erc to erc (multiple)', () => {
       // check that balance increases
       await promiseRetry(async retry => {
         const balance = await erc677Token2.methods.balanceOf(user.address).call()
-        if (toBN(balance).isZero()) {
+        if (!toBN(balance).eq(toBN(amount))) {
           retry()
         }
       })
     })
 
     it('should convert tokens in home to tokens in foreign', async () => {
-      const originalBalance = await erc20Token2.methods.balanceOf(user.address).call()
+      const foreignBalance = await erc20Token2.methods.balanceOf(user.address).call()
 
       // check that account has tokens in home chain
-      const balance = await erc677Token2.methods.balanceOf(user.address).call()
-      assert(!toBN(balance).isZero(), 'Account should have tokens')
+      const homeBalance = await erc677Token2.methods.balanceOf(user.address).call()
+      assert(!toBN(homeBalance).isZero(), 'Account should have tokens in home')
+
+      const amount = homeWeb3.utils.toWei('0.01')
 
       // send transaction to home bridge
       const depositTx = await erc677Token2.methods
-        .transferAndCall(HOME_BRIDGE_ADDRESS_2, homeWeb3.utils.toWei('0.01'), '0x')
+        .transferAndCall(HOME_BRIDGE_ADDRESS_2, amount, '0x')
         .send({
           from: user.address,
           gas: '1000000'
@@ -193,7 +208,8 @@ describe('erc to erc (multiple)', () => {
       // check that balance increases
       await promiseRetry(async retry => {
         const balance = await erc20Token2.methods.balanceOf(user.address).call()
-        if (toBN(balance).lte(toBN(originalBalance))) {
+        const shouldBeBalance = toBN(foreignBalance).add(toBN(amount))
+        if (!toBN(balance).eq(shouldBeBalance)) {
           retry()
         }
       })
